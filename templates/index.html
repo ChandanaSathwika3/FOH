@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/uhstyle.css') }}">
+    <title>User Home - FOX OF HOOD</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <header>
+        <nav>
+            <a href="{{ url_for('homeuser') }}">Home</a>
+            <a href="{{ url_for('trade') }}">Trade</a>
+            <a href="{{ url_for('report') }}">Report</a>
+            <a href="{{ url_for('logout') }}">Logout</a>
+            <a href="{{ url_for('profile') }}">{{ session['username'] }}</a>
+        </nav>
+    </header>
+    
+    <main>
+        <section>
+            <h2>Your Portfolio Overview</h2>
+            <div class="chart-container">
+                <canvas id="portfolioChart1" width="200" height="100"></canvas>
+                <canvas id="portfolioChart2" width="200" height="100"></canvas>
+               
+            </div>
+        </section>
+        <section>
+            <h2>Recent Activities</h2>
+            <ul>
+                <li>Stock A purchased at $120</li>
+                <li>Stock B sold at $190</li>
+                <li>Stock C dividend received: $50</li>
+                <li>Stock D price updated to $500</li>
+            </ul>
+        </section>
+    </main>
+    
+    <footer>
+        <p>&copy; 2024 FOX OF HOOD. All rights reserved.</p>
+    </footer>
+    <script>
+        // Chart 1
+        const ctx1 = document.getElementById('portfolioChart1').getContext('2d');
+        const portfolioChart1 = new Chart(ctx1, {
+            type: 'bar',
+            data: {
+                labels: ['Stock A', 'Stock B', 'Stock C', 'Stock D'],
+                datasets: [{
+                    label: 'Stock Value 1',
+                    data: [120, 190, 300, 500],
+                    backgroundColor: 'rgba(75, 192, 192, 0.6)', // Darker teal
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Stock Value ($)'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Stocks'
+                        }
+                    }
+                }
+            }
+        });
+    
+        // Chart 2
+        const ctx2 = document.getElementById('portfolioChart2').getContext('2d');
+        const portfolioChart2 = new Chart(ctx2, {
+            type: 'line',
+            data: {
+                labels: ['Stock A', 'Stock B', 'Stock C', 'Stock D'],
+                datasets: [{
+                    label: 'Stock Value 2',
+                    data: [100, 200, 250, 450],
+                    backgroundColor: 'rgba(153, 102, 255, 0.6)', // Darker purple
+                    borderColor: 'rgba(153, 102, 255, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Stock Value ($)'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Stocks'
+                        }
+                    }
+                }
+            }
+        });
+    </script>
+    
+</body>
+</html>

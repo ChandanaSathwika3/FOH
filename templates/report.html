@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tarde.css') }}">
+    <title>User Home - FOX OF HOOD</title>
+</head>
+<body>
+    <header>
+        <nav>
+            <a href="{{ url_for('homeuser') }}">Home</a>
+            <a href="{{ url_for('trade') }}">Trade</a>
+            <a href="{{ url_for('report') }}">Report</a>
+            <a href="{{ url_for('logout') }}">Logout</a>
+            <a href="{{ url_for('profile') }}">{{ session['username'] }}</a>
+        </nav>
+    </header>
+    <div class="container">
+        <h1 class="mt-4">News Articles for AAPL</h1>
+        <hr>
+        {% if articles %}
+            <div class="list-group">
+                {% for article in articles %}
+                    <a href="{{ article.url }}" class="list-group-item list-group-item-action" target="_blank">
+                        <h5 class="mb-1">{{ article.title }}</h5>
+                        <p class="mb-1">{{ article.summary }}</p>
+                        <small>Published: {{ article.time_published }} by {{ article.authors[0] }}</small>
+                        <br>
+                        <small>Source: {{ article.source }}</small>
+                        <br>
+                        <small>Sentiment: {{ article.overall_sentiment_label }}</small>
+                    </a>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p>No articles found for AAPL.</p>
+        {% endif %}
+    </div>
+</body>
+</html>

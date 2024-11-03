@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+
+{% block title %}FOX OF HOOD - Your Stock Portfolio Manager{% endblock %}
+
+{% block content %}
+    <main class="home-container">
+        <div class="overlay">
+            <h1>FOX OF HOOD</h1>
+            <p class="tagline">Your Ultimate Stock Portfolio Manager</p>
+            <p>Track your investments, stay updated with real-time stock data, and make informed financial decisions.</p>
+            <div class="cta-buttons">
+                <a href="{{ url_for('registerpage') }}" class="btn btn-register">Get Started</a>
+                
+            </div>
+        </div>
+    </main>
+{% endblock %}

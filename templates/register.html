@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/ustyle.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <title>User Registration</title>
+</head>
+<body>
+    <header>
+        <nav>
+            <a href="{{ url_for('home') }}">Home</a>
+            <a href="{{ url_for('register') }}">Register</a>
+            <a href="{{ url_for('login') }}">Login</a>
+            <a href="{{ url_for('admin') }}">Admin</a>
+        </nav>
+    </header>
+    <main class="registration-container">
+        
+        <div class="registration-form">
+            <h2>User Registration</h2>
+            <form action="{{ url_for('register') }}" method="post" onsubmit="return validateForm()">
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" name="username" placeholder="Enter username" required>
+                </div>
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" name="email" placeholder="Enter email" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" placeholder="Enter password" required>
+                </div>
+                <div class="form-group">
+                    <label for="cpassword">Confirm Password</label>
+                    <input type="password" id="cpassword" name="cpassword" placeholder="Confirm password" required>
+                </div>
+                <div class="form-group">
+                    <label for="captcha">CAPTCHA: {{ captcha }}</label>
+                    <input type="text" id="captcha" name="captcha" placeholder="Enter captcha" required>
+                    <!-- <button type="button" onclick="generateCaptcha()">Refresh Captcha</button> -->
+                </div>
+                <button type="submit" class="btn-submit">Register</button>
+            </form>
+        </div>
+    </main>
+
+    <script>
+        // Generate and display captcha
+        function generateCaptcha() {
+            const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+            let captcha = '';
+            for (let i = 0; i < 6; i++) {
+                captcha += characters.charAt(Math.floor(Math.random() * characters.length));
+            }
+            document.getElementById('captcha-text').textContent = captcha;
+        }
+
+        // Validate form on submit
+        function validateForm() {
+            const password = document.getElementById('password').value;
+            const cpassword = document.getElementById('cpassword').value;
+            const captcha = document.getElementById('captcha').value;
+            const captchaText = document.getElementById('captcha-text').textContent;
+
+            if (password !== cpassword) {
+                alert("Passwords do not match!");
+                return false;
+            }
+
+            if (captcha !== captchaText) {
+                alert("Incorrect captcha. Please try again.");
+                return false;
+            }
+
+            return true;
+        }
+
+        // Initialize captcha on page load
+        window.onload = generateCaptcha;
+    </script>
+</body>
+</html>

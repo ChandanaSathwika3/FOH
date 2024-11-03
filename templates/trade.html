@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/tarde.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <header>
+        <nav>
+            <a href="{{ url_for('homeuser') }}">Home</a>
+            <a href="{{ url_for('trade') }}">Trade</a>
+            <a href="{{ url_for('report') }}">Report</a>
+            <a href="{{ url_for('logout') }}">Logout</a>
+            <a href="{{ url_for('profile') }}">{{ session['username'] }}</a>
+        </nav>
+    </header>
+  
+    <main>
+        <section>
+            <h2>Stock Overview</h2>
+            <div>
+                <input type="text" id="stockSymbol" placeholder="Enter stock symbol (e.g., IBM)">
+                <button id="searchBtn">Search</button>
+            </div>
+        </section>
+        <div id="stockInfo"></div> <!-- Moved inside the section -->
+        <div id="chartContainer">
+            <canvas id="stockChart"></canvas>
+        </div>
+    </main>
+
+    <script>
+        const searchBtn = document.getElementById('searchBtn');
+        const stockSymbolInput = document.getElementById('stockSymbol');
+        const stockInfoDiv = document.getElementById('stockInfo');
+        const ctx = document.getElementById('stockChart').getContext('2d');
+        let stockChart;
+
+        searchBtn.addEventListener('click', async () => {
+            const symbol = stockSymbolInput.value.trim().toUpperCase();
+            if (symbol) {
+                const apiKey = 'E9GL742F46VKCLNV'; // Replace with your own API key
+                const url = `https://www.alphavantage.co/query?function=TIME_SERIES_INTRADAY&symbol=${symbol}&interval=5min&apikey=${apiKey}`;
+                
+                try {
+                    const response = await fetch(url);
+                    const data = await response.json();
+                    
+                    // Check if the data returned is valid
+                    if (data['Time Series (5min)']) {
+                        const metaData = data["Meta Data"];
+                        const timeSeries = data['Time Series (5min)'];
+                        const times = Object.keys(timeSeries).reverse(); // Reverse to get latest data first
+                        
+                        // Prepare data for chart
+                        const prices = times.map(time => parseFloat(timeSeries[time]['4. close']));
+
+                        // Display stock information
+                        stockInfoDiv.innerHTML = `
+                            <h3>Stock: ${metaData['2. Symbol']}</h3>
+                            <p>Last Refreshed: ${metaData['3. Last Refreshed']}</p>
+                            <p>Latest Open Price: $${parseFloat(timeSeries[times[0]]['1. open']).toFixed(2)}</p>
+                            <p>Latest High Price: $${parseFloat(timeSeries[times[0]]['2. high']).toFixed(2)}</p>
+                            <p>Latest Low Price: $${parseFloat(timeSeries[times[0]]['3. low']).toFixed(2)}</p>
+                            <p>Latest Close Price: $${parseFloat(timeSeries[times[0]]['4. close']).toFixed(2)}</p>
+                            <p>Latest Volume: ${parseInt(timeSeries[times[0]]['5. volume']).toLocaleString()}</p>
+                        `;
+
+                        // Create or update the chart
+                        if (stockChart) {
+                            stockChart.destroy(); // Destroy previous chart instance if exists
+                        }
+                        stockChart = new Chart(ctx, {
+                            type: 'line',
+                            data: {
+                                labels: times.reverse(), // Reverse back to chronological order for display
+                                datasets: [{
+                                    label: 'Close Price ($)',
+                                    data: prices.reverse(),
+                                    borderColor: 'rgba(75, 192, 192, 1)',
+                                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                                    fill: true,
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                scales: {
+                                    y: {
+                                        beginAtZero: false,
+                                        title: {
+                                            display: true,
+                                            text: 'Price ($)'
+                                        }
+                                    },
+                                    x: {
+                                        title: {
+                                            display: true,
+                                            text: 'Time'
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    } else {
+                        stockInfoDiv.innerHTML = '<p>No data found for the specified stock symbol.</p>';
+                    }
+                } catch (error) {
+                    console.error('Error fetching stock data:', error);
+                    stockInfoDiv.innerHTML = '<p>Error fetching stock data. Please try again later.</p>';
+                }
+            }
+        });
+    </script>
+</body>
+</html>
