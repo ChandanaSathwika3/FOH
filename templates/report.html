@@ -3,39 +3,200 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/tarde.css') }}">
-    <title>User Home - FOX OF HOOD</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+       
+    <title>Stock Market Data</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+            color: #333;
+        }
+
+        h1, h2 {
+            text-align: center;
+            color: #2c3e50;
+            margin-top: 40px;
+        }
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            gap: 20px;
+          
+        }
+        .chart-container {
+            flex: 1 1 calc(50% - 20px); /* 50% width with spacing */
+            background-color: #fff;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        .chart-container.full-width {
+            flex: 1 1 100%; /* Full width for the third chart */
+        }
+
+        canvas {
+            width: 100%;
+            height: 300px; /* Ensure consistent height */
+        }
+
+        @media (max-width: 768px) {
+            .chart-container {
+                flex: 1 1 100%; /* Full width on smaller screens */
+            }
+        }
+        header {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            padding: 10px 60px;
+            background-color: rgba(0, 0, 0, 0.8);
+            position: fixed;
+            top: 0;
+            width: 100%;
+            box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.3);
+            z-index: 1;
+        }
+
+        header nav a {
+            color: #ffffff;
+            margin-left: 20px;
+            text-decoration: none;
+            font-weight: bold;
+            font-size: 1rem;
+        }
+
+        header nav a:hover {
+            text-decoration: underline;
+        }
+
+        @media screen and (max-width: 768px) {
+            h1, h2 {
+                font-size: 20px;
+            }
+        }
+        .chart-containers {
+            width: 100%;
+            max-width: 800px;
+            margin: 20px auto;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+    </style>
 </head>
 <body>
     <header>
         <nav>
             <a href="{{ url_for('homeuser') }}">Home</a>
             <a href="{{ url_for('trade') }}">Trade</a>
+            <a href="{{ url_for('history') }}">History</a>
             <a href="{{ url_for('report') }}">Report</a>
             <a href="{{ url_for('logout') }}">Logout</a>
             <a href="{{ url_for('profile') }}">{{ session['username'] }}</a>
         </nav>
     </header>
+    <h1>Stock Market Data Visualization</h1>
     <div class="container">
-        <h1 class="mt-4">News Articles for AAPL</h1>
-        <hr>
-        {% if articles %}
-            <div class="list-group">
-                {% for article in articles %}
-                    <a href="{{ article.url }}" class="list-group-item list-group-item-action" target="_blank">
-                        <h5 class="mb-1">{{ article.title }}</h5>
-                        <p class="mb-1">{{ article.summary }}</p>
-                        <small>Published: {{ article.time_published }} by {{ article.authors[0] }}</small>
-                        <br>
-                        <small>Source: {{ article.source }}</small>
-                        <br>
-                        <small>Sentiment: {{ article.overall_sentiment_label }}</small>
-                    </a>
-                {% endfor %}
-            </div>
-        {% else %}
-            <p>No articles found for AAPL.</p>
-        {% endif %}
+    <!-- Top Gainers Graph -->
+    <div class="chart-container">
+        <h2>Top Gainers</h2>
+        <canvas id="topGainersChart"></canvas>
     </div>
+
+    <!-- Top Losers Graph -->
+    <div class="chart-container">
+        <h2>Top Losers</h2>
+        <canvas id="topLosersChart"></canvas>
+    </div>
+</div>
+    <!-- Most Actively Traded Graph -->
+    <div class="chart-containers">
+        <h2>Most Actively Traded</h2>
+        <canvas id="mostActivelyTradedChart"></canvas>
+    </div>
+
+    <script>
+        // Sample data from your server-side logic (replace these variables with your real data)
+        const topGainers = {{ top_gainers | safe }};
+        const topLosers = {{ top_losers | safe }};
+        const mostActivelyTraded = {{ most_actively_traded | safe }};
+
+        // Helper function to extract labels and data
+        function prepareChartData(data, valueKey) {
+            const labels = data.map(item => item.ticker);
+            const values = data.map(item => item[valueKey]);
+            return { labels, values };
+        }
+
+        // Create Top Gainers Chart
+        const topGainersData = prepareChartData(topGainers, 'price');
+        new Chart(document.getElementById('topGainersChart'), {
+            type: 'bar',
+            data: {
+                labels: topGainersData.labels,
+                datasets: [{
+                    label: 'Price',
+                    data: topGainersData.values,
+                    backgroundColor: '#27ae60',
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { display: false },
+                },
+            }
+        });
+
+        // Create Top Losers Chart
+        const topLosersData = prepareChartData(topLosers, 'price');
+        new Chart(document.getElementById('topLosersChart'), {
+            type: 'bar',
+            data: {
+                labels: topLosersData.labels,
+                datasets: [{
+                    label: 'Price',
+                    data: topLosersData.values,
+                    backgroundColor: '#e74c3c',
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { display: false },
+                },
+            }
+        });
+
+        // Create Most Actively Traded Chart
+        const mostActivelyTradedData = prepareChartData(mostActivelyTraded, 'volume');
+        new Chart(document.getElementById('mostActivelyTradedChart'), {
+            type: 'line',
+            data: {
+                labels: mostActivelyTradedData.labels,
+                datasets: [{
+                    label: 'Volume',
+                    data: mostActivelyTradedData.values,
+                    backgroundColor: '#f39c12',
+                    borderColor: '#f39c12',
+                    fill: false,
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { display: false },
+                },
+            }
+        });
+    </script>
 </body>
 </html>

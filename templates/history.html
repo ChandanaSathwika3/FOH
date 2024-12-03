@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transaction History</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Bootstrap CSS -->
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+
+    <style>
+        /* General styles */
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 0;
+            color: #333;
+        }
+
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-top: 20px;
+        }
+
+        h2 {
+            color: #2c3e50;
+            margin-top: 20px;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .table-container {
+            width: 80%;
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            overflow-x: auto;
+            margin-top: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        th, td {
+            text-align: left;
+            padding: 12px 15px;
+            border: 1px solid #ddd;
+        }
+
+        th {
+            background-color: #3498db;
+            color: #fff;
+            text-transform: uppercase;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        tr:hover {
+            background-color: #f1f1f1;
+        }
+
+        .no-transactions {
+            font-size: 18px;
+            color: #e74c3c;
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        @media (max-width: 768px) {
+            th, td {
+                font-size: 14px;
+                padding: 8px 10px;
+            }
+
+            .table-container {
+                padding: 10px;
+            }
+        }
+
+    /* Header style */
+    header {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    padding: 10px 60px;
+    background-color: rgba(0, 0, 0, 0.8); /* Darker background */
+    position: fixed; /* Sticks to the top as you scroll */
+    top: 10;
+    width: 95%;
+    box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.3); /* Adds shadow for depth */
+    z-index: 1;
+    transition: background-color 0.3s; /* Smooth transition for color */
+}
+
+header:hover {
+    background-color: rgba(0, 0, 0, 0.9); /* Darker on hover */
+}
+
+header nav a {
+    color: #ffffff;
+    margin-left: 20px;
+    text-decoration: none;
+    font-weight: bold;
+    font-size: 1rem;
+    position: relative;
+    transition: color 0.3s ease, transform 0.3s ease; /* Smooth color and scale on hover */
+}
+
+header nav a::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    bottom: -5px;
+    width: 100%;
+    height: 2px;
+    background-color: #f0a500;
+    transform: scaleX(0); /* Hidden line initially */
+    transform-origin: right;
+    transition: transform 0.3s ease;
+}
+
+    </style>
+</head>
+<body>
+    <header>
+        <nav>
+            <a href="{{ url_for('homeuser') }}">Home</a>
+            <a href="{{ url_for('trade') }}">Trade</a>
+            <a href="{{ url_for('history') }}">History</a>
+            <a href="{{ url_for('report') }}">Report</a>
+            <a href="{{ url_for('logout') }}">Logout</a>
+            <a href="{{ url_for('profile') }}">{{ session['username'] }}</a>
+        </nav>
+    </header>
+    <main class="container">
+        <h1>Transaction History</h1>
+        <div class="table-container">
+            {% if transactions %}
+            <table>
+                <thead>
+                    <tr>
+                        <th>Transaction ID</th>
+                        <th>Contact ID</th>
+                        <th>Quantity</th>
+                        <th>Type</th>
+                        <th>Action</th>
+                        <th>Amount</th>
+                        <th>Date</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for transaction in transactions %}
+                    <tr>
+                        <td>{{ transaction.id }}</td>
+                        <td>{{ transaction.contractID }}</td>
+                        <td>{{ transaction.quantity }}</td>
+                        <td>{{ transaction.type }}</td>
+                        <td>{{ transaction.action }}</td>
+                        <td>{{ transaction.price }}</td>
+                        <td>{{ transaction.excdate }}</td>
+                        <td>
+                            {% if transaction.isactive == 1 %}
+                                <span style="color: blue;">Active</span>
+                            {% else %}
+                                <span style="color: red;">Sold</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <p class="no-transactions">No transactions to display.</p>
+            {% endif %}
+        </div>
+    
+        <!-- Add canvas element for the profit/loss graph -->
+        <div class="graph-container">
+            <canvas id="profitLossChart" width="400" height="200"></canvas>
+            
+        </div>
+    </main>
+    <script>
+        // Initialize a variable to keep track of the remaining quantities and profit/loss per contract
+        let transactionState = {};
+    
+        const transactionsData = [
+            {% for transaction in transactions %}
+                {
+                    contractID: "{{ transaction.contractID }}",
+                    action: "{{ transaction.action }}", // buy or sell
+                    quantity: {{ transaction.quantity }},
+                    price: {{ transaction.price }},
+                    excdate: "{{ transaction.excdate }}"
+                },
+            {% endfor %}
+        ];
+    
+        // Initialize arrays to store the calculated profit/loss and contract IDs
+        let profitLossData = [];
+        let contractLabels = [];
+    
+        // Iterate over each transaction to calculate profit/loss for each contract
+        transactionsData.forEach(transaction => {
+            const { contractID, action, quantity, price } = transaction;
+    
+            // Check if contractID already exists in the state
+            if (!transactionState[contractID]) {
+                transactionState[contractID] = { boughtQuantity: 0, totalCost: 0, profitLoss: 0 };
+            }
+    
+            // If it's a buy transaction, add to the total cost and increase bought quantity
+            if (action === 'buy') {
+                transactionState[contractID].boughtQuantity += quantity;
+                transactionState[contractID].totalCost += quantity * price;
+            }
+            // If it's a sell transaction, calculate profit/loss for the sold quantity
+            else if (action === 'sell' && transactionState[contractID].boughtQuantity >= quantity) {
+                const totalSellPrice = quantity * price;
+                const averageBuyPrice = transactionState[contractID].totalCost / transactionState[contractID].boughtQuantity;
+    
+                // Calculate the profit or loss (difference between buy price and sell price)
+                const profitLoss = (price - averageBuyPrice) * quantity;
+    
+                // Update profit/loss for this contract
+                transactionState[contractID].profitLoss += profitLoss;
+    
+                // Update bought quantity
+                transactionState[contractID].boughtQuantity -= quantity;
+                transactionState[contractID].totalCost -= quantity * averageBuyPrice;
+            }
+        });
+    
+        // Prepare data for the contract-based profit/loss chart
+        for (const contractID in transactionState) {
+            if (transactionState.hasOwnProperty(contractID)) {
+                contractLabels.push(contractID); // Add contract ID to the labels
+                profitLossData.push(transactionState[contractID].profitLoss); // Add corresponding profit/loss for each contract
+            }
+        }
+    
+        new Chart(document.getElementById('profitLossChart'), {
+            type: 'line', // Changed chart type to 'line'
+            data: {
+                labels: contractLabels,
+                datasets: [{
+                    label: 'Profit/Loss (₹)',
+                    data: profitLossData,
+                    borderColor: '#3498db', // Line color
+                    backgroundColor: 'rgba(52, 152, 219, 0.2)', // Shaded area under the line
+                    borderWidth: 2, // Thickness of the line
+                    tension: 0.4, // Curves the line
+                    pointBackgroundColor: '#e74c3c', // Point color
+                    pointRadius: 5, // Size of the points
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { display: true }, // Display legend
+                    tooltip: { 
+                        callbacks: {
+                            label: function(tooltipItem) {
+                                return 'Profit/Loss: ₹' + tooltipItem.raw.toFixed(2); // Format tooltip
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Contract ID'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Profit/Loss (₹)'
+                        },
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    </script>
+    
+    
+    
+    
+    
+ </body>   
+</html>

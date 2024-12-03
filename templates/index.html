@@ -3,113 +3,199 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/uhstyle.css') }}">
+    
     <title>User Home - FOX OF HOOD</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+        #dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            padding: 20px;
+        }
+        .market-card {
+            background: #fff;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+        .market-card h3 {
+            margin: 0 0 10px;
+        }
+        .market-card p {
+            margin: 5px 0;
+        }
+        .open {
+            color: green;
+        }
+        .closed {
+            color: red;
+        }
+        #chartContainer {
+            margin: 20px auto;
+            max-width: 200px;
+            padding: 0px;
+            background: #fff;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+          /* Header style */
+          header {
+    display: flex;
+    justify-content: flex-end;
+    align-items: center;
+    padding: 10px 60px;
+    background-color: rgba(0, 0, 0, 0.8); /* Darker background */
+    position: fixed; /* Sticks to the top as you scroll */
+    top: 10;
+    width: 100%;
+    box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.3); /* Adds shadow for depth */
+    z-index: 1;
+    transition: background-color 0.3s; /* Smooth transition for color */
+}
+
+header:hover {
+    background-color: rgba(0, 0, 0, 0.9); /* Darker on hover */
+}
+
+header nav a {
+    color: #ffffff;
+    margin-left: 20px;
+    text-decoration: none;
+    font-weight: bold;
+    font-size: 1rem;
+    position: relative;
+    transition: color 0.3s ease, transform 0.3s ease; /* Smooth color and scale on hover */
+}
+
+header nav a::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    bottom: -5px;
+    width: 100%;
+    height: 2px;
+    background-color: #f0a500;
+    transform: scaleX(0); /* Hidden line initially */
+    transform-origin: right;
+    transition: transform 0.3s ease;
+}
+
+    </style>
+    
 </head>
 <body>
     <header>
         <nav>
             <a href="{{ url_for('homeuser') }}">Home</a>
             <a href="{{ url_for('trade') }}">Trade</a>
+            <a href="{{ url_for('history') }}">History</a>
             <a href="{{ url_for('report') }}">Report</a>
             <a href="{{ url_for('logout') }}">Logout</a>
             <a href="{{ url_for('profile') }}">{{ session['username'] }}</a>
+           
         </nav>
     </header>
-    
-    <main>
-        <section>
-            <h2>Your Portfolio Overview</h2>
-            <div class="chart-container">
-                <canvas id="portfolioChart1" width="200" height="100"></canvas>
-                <canvas id="portfolioChart2" width="200" height="100"></canvas>
-               
-            </div>
-        </section>
-        <section>
-            <h2>Recent Activities</h2>
-            <ul>
-                <li>Stock A purchased at $120</li>
-                <li>Stock B sold at $190</li>
-                <li>Stock C dividend received: $50</li>
-                <li>Stock D price updated to $500</li>
-            </ul>
-        </section>
-    </main>
-    
-    <footer>
-        <p>&copy; 2024 FOX OF HOOD. All rights reserved.</p>
-    </footer>
+    <!-- Modal for Adding Amount -->
+
+    <h1 class="text-center my-4">Global Market</h1>    <div id="dashboard"></div>
+    <div id="chartContainer">
+        <canvas id="marketChart"></canvas>
+    </div>
     <script>
-        // Chart 1
-        const ctx1 = document.getElementById('portfolioChart1').getContext('2d');
-        const portfolioChart1 = new Chart(ctx1, {
-            type: 'bar',
-            data: {
-                labels: ['Stock A', 'Stock B', 'Stock C', 'Stock D'],
-                datasets: [{
-                    label: 'Stock Value 1',
-                    data: [120, 190, 300, 500],
-                    backgroundColor: 'rgba(75, 192, 192, 0.6)', // Darker teal
-                    borderColor: 'rgba(75, 192, 192, 1)',
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        title: {
-                            display: true,
-                            text: 'Stock Value ($)'
-                        }
-                    },
-                    x: {
-                        title: {
-                            display: true,
-                            text: 'Stocks'
-                        }
-                    }
+
+        // Fetch market data from the API
+const apiKey = "demo"; 
+const url = `https://www.alphavantage.co/query?function=MARKET_STATUS&apikey=${apiKey}`;
+
+async function fetchMarketData() {
+    try {
+        const response = await fetch(url);
+        const data = await response.json();
+
+        console.log(data); // Log to verify structure
+
+        // Render dashboard
+        renderDashboard(data.markets);
+
+        // Prepare data for graphs
+        const graphData = prepareGraphData(data.markets);
+
+        // Render graph
+        renderGraph(graphData);
+    } catch (error) {
+        console.error("Error fetching market data:", error);
+    }
+}
+
+// Render dashboard using fetched data
+function renderDashboard(markets) {
+    const dashboard = document.getElementById("dashboard");
+
+    markets.forEach((market) => {
+        const marketCard = document.createElement("div");
+        marketCard.classList.add("market-card");
+
+        marketCard.innerHTML = `
+            <h3>${market.region} (${market.market_type})</h3>
+            <p><strong>Primary Exchanges:</strong> ${market.primary_exchanges}</p>
+            <p><strong>Local Open:</strong> ${market.local_open}</p>
+            <p><strong>Local Close:</strong> ${market.local_close}</p>
+            <p><strong>Status:</strong> <span class="${market.current_status}">${market.current_status}</span></p>
+            ${market.notes ? `<p><strong>Notes:</strong> ${market.notes}</p>` : ""}
+        `;
+
+        dashboard.appendChild(marketCard);
+    });
+}
+
+// Prepare data for graph
+function prepareGraphData(markets) {
+    const openMarkets = markets.filter(market => market.current_status === "open").length;
+    const closedMarkets = markets.filter(market => market.current_status === "closed").length;
+
+    return {
+        labels: ["Open", "Closed"],
+        datasets: [{
+            label: "Market Status",
+            data: [openMarkets, closedMarkets],
+            backgroundColor: ["#4caf50", "#f44336"],
+        }]
+    };
+}
+
+// Render graph using Chart.js
+function renderGraph(graphData) {
+    const ctx = document.getElementById("marketChart").getContext("2d");
+    new Chart(ctx, {
+        type: "pie",
+        data: graphData,
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: "top",
+                },
+                title: {
+                    display: true,
+                    text: "Market Status Distribution"
                 }
             }
-        });
-    
-        // Chart 2
-        const ctx2 = document.getElementById('portfolioChart2').getContext('2d');
-        const portfolioChart2 = new Chart(ctx2, {
-            type: 'line',
-            data: {
-                labels: ['Stock A', 'Stock B', 'Stock C', 'Stock D'],
-                datasets: [{
-                    label: 'Stock Value 2',
-                    data: [100, 200, 250, 450],
-                    backgroundColor: 'rgba(153, 102, 255, 0.6)', // Darker purple
-                    borderColor: 'rgba(153, 102, 255, 1)',
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        title: {
-                            display: true,
-                            text: 'Stock Value ($)'
-                        }
-                    },
-                    x: {
-                        title: {
-                            display: true,
-                            text: 'Stocks'
-                        }
-                    }
-                }
-            }
-        });
+        }
+    });
+}
+
+// Call the API and populate the dashboard on page load
+document.addEventListener("DOMContentLoaded", fetchMarketData);
+
     </script>
-    
 </body>
 </html>

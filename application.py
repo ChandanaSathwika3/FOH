@@ -1,4 +1,4 @@
-from flask import Flask, render_template
+from flask import Flask, render_template,jsonify
 import yfinance as yf
 import os
 from yahooquery import Screener
@@ -13,10 +13,6 @@ from werkzeug.security import check_password_hash
 from flask_mail import Mail, Message
 from cryptography.fernet import Fernet
 import requests
-# Generate a key (store it securely and reuse it for encrypting/decrypting)
-key = Fernet.generate_key()
-cipher_suite = Fernet(key)
-
 
 app = Flask(__name__)
 app.secret_key = 'your_secret_key'
@@ -24,10 +20,10 @@ app.secret_key = 'your_secret_key'
 app.config['MAIL_SERVER'] = 'smtp.gmail.com'            # Your SMTP server
 app.config['MAIL_PORT'] = 587                           # Common port for TLS
 app.config['MAIL_USE_TLS'] = True                       # Use TLS for security
-app.config['MAIL_USERNAME'] = 'chandanasathwika@gmail.com'    # Your email address
+app.config['MAIL_USERNAME'] = 'chandanasatwika@gmail.com'    # Your email address
 app.config['MAIL_PASSWORD'] = 'nbjlnyqkjtkshalx'           # Your email password
-app.config['MAIL_DEFAULT_SENDER'] = ('Chandana', 'chandanasathwika@gmail.com')
-app.config['MAIL_MAX_EMAILS'] = 50                      # Optional, sets a limit for batch emails
+app.config['MAIL_DEFAULT_SENDER'] = ('chandana', 'chandanasatwika@gmail.com')
+app.config['MAIL_MAX_EMAILS'] = 50                      
 
 # Initialize Mail extension
 mail = Mail(app)
@@ -89,6 +85,16 @@ def admin_dashboard():
     # Render the admin dashboard template and pass the user details
     return render_template('admin_dashboard.html', users=users)
 
+@app.route('/delete_user/<int:user_id>', methods=['POST'])
+def delete_user(user_id):
+    conn = get_db_connection()
+    conn.execute('DELETE FROM users WHERE id = ?', (user_id,))
+    user = conn.execute('SELECT * FROM users WHERE id= ?', (user_id,)).fetchone()
+    conn.execute('DELETE FROM transactions WHERE user = ?', (user,))
+    conn.execute('DELETE FROM wallet WHERE user = ?', (user,))
+    conn.commit()
+    conn.close()
+    return redirect(url_for('admin_dashboard'))
 
 
 @app.route('/registerpage')
@@ -118,7 +124,8 @@ def register():
         if captcha_input != captcha_generated:
             flash("Invalid CAPTCHA. Please try again.", "error")
             return redirect(url_for('register'))
-
+        key = Fernet.generate_key()
+        cipher_suite = Fernet(key)
         # Hash the password for security
         hashed_password = cipher_suite.encrypt(password.encode())
 
@@ -126,17 +133,27 @@ def register():
         try:
             conn = get_db_connection()
             conn.execute(
-                'INSERT INTO users (username, email, password) VALUES (?, ?, ?)',
-                (username, email, hashed_password)
+                'INSERT INTO users (username, email, password,key) VALUES (?, ?, ?,?)',
+                (username, email, hashed_password,key)
             )
             conn.commit()
             conn.close()
-            conn = get_db_connection()
-            user = conn.execute('SELECT * FROM users WHERE email = ?', (email,)).fetchone()
-            conn.close()
             flash("Registration successful!", "success")
             subject = "Welcome to FOX OF HOOD!"
-            body = f" Hello {user['username']},\nThank you for registering with FOX OF HOOD! We're excited to have you on board. Here are a few things you can do with your account:\n- Explore our stock portfolio simulation tools.\n- Keep track of your trades and manage your assets.\n- Access reports and insights.\nIf you have any questions, feel free to reach out to our support team.\n\nBest regards,  \nThe FOX OF HOOD Team"
+            body = """
+Hello {username},
+
+Thank you for registering with FOX OF HOOD! We're excited to have you on board. Here are a few things you can do with your account:
+
+- Explore our stock portfolio simulation tools.
+- Keep track of your trades and manage your assets.
+- Access reports and insights.
+
+If you have any questions, feel free to reach out to our support team.
+
+Best regards,  
+The FOX OF HOOD Team
+"""
             send_email(subject, email, body)
             return redirect(url_for('home'))
         except sqlite3.IntegrityError:
@@ -158,7 +175,9 @@ def forgot_password():
         conn = get_db_connection()
         user = conn.execute('SELECT * FROM users WHERE email = ?', (email,)).fetchone()
         conn.close()
+        cipher_suite = Fernet(user['key'])
         passw=cipher_suite.decrypt(user['password']).decode()
+        #passw=cipher_suite.decrypt(user['password']).decode()
         if user:
             # Prepare email details
             subject = "FOX OF HOOD! User Account Recovery"
@@ -186,7 +205,11 @@ def login():
         conn = get_db_connection()
         user = conn.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
         conn.close()
+        print(user['password'])
+        #cipher_suite.encrypt(password.encode())
+        cipher_suite = Fernet(user['key'])
         passw=cipher_suite.decrypt(user['password']).decode()
+        print(passw)
         if user and passw== password:
             session['username'] = user['username']  # Store username in session
             flash("Login successful!", "success")
@@ -208,11 +231,19 @@ def profile():
         # Fetch user data from the database
         conn = get_db_connection()  # Assuming you have a function to get DB connection
         user = conn.execute('SELECT * FROM users WHERE username = ?', (username,)).fetchone()
+        wallet_entry = conn.execute(
+        '''
+        SELECT amount FROM wallet WHERE user = ?
+        ''', (username,)
+    ).fetchone()
+        
+        wallet_amount = wallet_entry['amount'] if wallet_entry else 0
+        wallet_amount = round(wallet_amount, 2)
         conn.close()
         
         if user:
             email = user['email']  # Adjust based on your actual table structure
-            return render_template('profile.html', username=username, email=email)
+            return render_template('profile.html', username=username, email=email,wallet_amount=wallet_amount)
         else:
             flash("User not found!", "danger")
             return redirect(url_for('login'))
@@ -220,33 +251,249 @@ def profile():
         flash("You need to log in first!", "danger")
         return redirect(url_for('login'))
 
+@app.route('/add_amount', methods=['POST'])
+def add_amount():
+    # Get the username from session
+    username = session.get('username')
+    if not username:
+        return redirect(url_for('homeuser'))
+    
+    # Get the amount from the form
+    amount_to_add = request.form.get('amount', type=int)
+    
+    # Update the wallet in the database
+    conn = get_db_connection()
+    wallet_entry = conn.execute(
+        '''
+        SELECT amount FROM wallet WHERE user = ?
+        ''', (username,)
+    ).fetchone()
+    
+    if wallet_entry:
+        # Update existing wallet amount
+        new_amount = wallet_entry['amount'] + amount_to_add
+        conn.execute(
+            '''
+            UPDATE wallet SET amount = ? WHERE user = ?
+            ''', (new_amount, username)
+        )
+    else:
+        # Insert a new wallet entry
+        conn.execute(
+            '''
+            INSERT INTO wallet (user, amount) VALUES (?, ?)
+            ''', (username, amount_to_add)
+        )
+    conn.commit()
+    conn.close()
+    
+    return redirect(url_for('profile'))
 
+
+# Function to fetch Top Gainers and Losers
+def fetch_stock_data():
+    api_key = 'demo'  # Replace with your API key
+    url = 'https://www.alphavantage.co/query'
+    # URL for fetching Top Gainers and Losers
+    stock_data_url = f'{url}?function=TOP_GAINERS_LOSERS&apikey={api_key}'
+
+    try:
+        # Make the API request
+        response = requests.get(stock_data_url)
+        data = response.json()  # Convert the response to JSON
+
+        # Extract the data for top gainers and losers from the response
+        # Assuming the structure of the response contains 'top_gainers' and 'top_losers' keys
+        top_gainers = data.get('top_gainers', [])
+        top_losers = data.get('top_losers', [])
+        most_actively_traded= data.get('most_actively_traded', [])
+
+        return {
+            'top_gainers': top_gainers,
+            'top_losers': top_losers,
+            'most_actively_traded':most_actively_traded
+        }
+    except requests.exceptions.RequestException as e:
+        print(f"Error fetching data: {e}")
+        return {
+            'top_gainers': [],
+            'top_losers': [],
+            'most_actively_traded':[]
+        }
 
 @app.route('/report')
 def report():
-    # Make a request to Alpha Vantage API
-    api_key = 'E9GL742F46VKCLNV'  # Replace with your API key
-    url = 'https://www.alphavantage.co/query'
-    params = {
-        'function': 'NEWS_SENTIMENT',
-        'tickers': 'AAPL',
-        'apikey': api_key
-    }
-    
-    response = requests.get(url, params=params)
-    data = response.json()
+    stock_data = fetch_stock_data()
+    return render_template('report.html', 
+                           top_gainers=stock_data['top_gainers'], 
+                           top_losers=stock_data['top_losers'],
+                           most_actively_traded=stock_data['most_actively_traded'])
 
-    # Check if data retrieval was successful
-    if "feed" in data:
-        articles = data["feed"]
+# Fetch options data
+def fetch_options_data(search):
+    api_key = "demo"  # Replace with your actual API key
+    url = f'https://www.alphavantage.co/query?function=HISTORICAL_OPTIONS&symbol={search}&apikey={api_key}'
+    response = requests.get(url)
+    return response.json().get("data", [])
+
+@app.route('/transaction', methods=['POST'])
+def transaction():
+    """Handles transaction creation and updates the user's wallet."""
+    data = request.json
+    if 'username' in session:
+        username = session['username']
     else:
-        articles = []
+        return jsonify({"error": "User not logged in"}), 401
+    print(username)
 
-    return render_template('report.html', articles=articles)
+    # Validate input data
+    required_fields = ['contractID', 'symbol', 'type', 'action', 'quantity', 'price']
+    if not all(field in data for field in required_fields):
+        return jsonify({"error": "Missing fields in request"}), 400
 
-@app.route('/trade')
+    try:
+        # Fetch user's current wallet balance
+        conn = get_db_connection()
+        user_balance = conn.execute(
+            'SELECT amount FROM wallet WHERE user = ?', (username,)
+        ).fetchone()
+        
+        if user_balance is None:
+            return jsonify({"error": "User not found"}), 404
+
+        balance = user_balance['amount']
+        print(f"Current wallet for {username}: {balance}")
+
+        # Calculate the total amount involved in the transaction
+        total_amount = float(data['quantity']) * float(data['price'])
+
+        if data['action'].lower() == 'buy':
+            # Deduct amount for 'buy' action
+            ask_price = float(data['price'])  # Assuming price is the ask price
+            if balance < total_amount:
+                return jsonify({"error": "Insufficient funds"}), 400
+            # Deduct from wallet
+            new_balance = balance - total_amount
+            conn.execute(
+                'UPDATE wallet SET amount = ? WHERE user = ?',
+                (new_balance, username)
+            )
+
+            # Insert transaction as active for 'buy' action
+            conn.execute(
+                '''
+                INSERT INTO transactions (contractID, symbol, type, action, quantity, price, user, isactive)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''',
+                (data['contractID'], data['symbol'], data['type'], data['action'], data['quantity'], data['price'], username, 1)
+            )
+
+        elif data['action'].lower() == 'sell':
+            # Check if user has an active contract (isactive = 1) for the contract they want to sell
+            active_contract = conn.execute(
+                'SELECT id, quantity FROM transactions WHERE user = ? AND contractID = ? AND isactive = 1',
+                (username, data['contractID'])
+            ).fetchone()
+
+            if active_contract is None or active_contract['quantity'] < data['quantity']:
+                return jsonify({"error": "Not enough active contracts to sell"}), 400
+
+            # Add amount for 'sell' action
+            bid_price = float(data['price'])  # Assuming price is the bid price
+            new_balance = balance + total_amount
+            conn.execute(
+                'UPDATE wallet SET amount = ? WHERE user = ?',
+                (new_balance, username)
+            )
+
+            # Mark the sold contract as inactive and adjust quantity
+            new_quantity = active_contract['quantity'] - data['quantity']
+            if new_quantity == 0:
+                conn.execute(
+                    'UPDATE transactions SET isactive = 0 WHERE id = ?',
+                    (active_contract['id'],)
+                )
+            else:
+                conn.execute(
+                    'UPDATE transactions SET quantity = ?, isactive = 1 WHERE id = ?',
+                    (new_quantity, active_contract['id'])
+                )
+
+            # Insert the new sell transaction with isactive = 0
+            conn.execute(
+                '''
+                INSERT INTO transactions (contractID, symbol, type, action, quantity, price, user, isactive)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''',
+                (data['contractID'], data['symbol'], data['type'], data['action'], data['quantity'], data['price'], username, 0)
+            )
+
+        else:
+            return jsonify({"error": "Invalid action. Use 'buy' or 'sell'"}), 400
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({"message": "Transaction successful"}), 201
+    except Exception as e:
+        return jsonify({"error": f"An error occurred: {e}"}), 500
+
+
+@app.route('/transactions', methods=['GET'])
+def get_transactions():
+    """Fetches all transactions from the SQLite database."""
+    try:
+        conn = get_db_connection()
+        transactions = conn.execute('SELECT * FROM transactions').fetchall()
+        conn.close()
+
+        # Format transactions into a JSON-friendly list
+        result = [
+            {
+                "id": row[0],
+                "contractID": row[1],
+                "symbol": row[2],
+                "type": row[3],
+                "action": row[4],
+                "quantity": row[5],
+                "price": row[6],
+            }
+            for row in transactions
+        ]
+        return jsonify(result), 200
+    except Exception as e:
+        return jsonify({"error": f"An error occurred: {e}"}), 500
+
+@app.route('/history')
+def history():
+    if 'username' in session:
+        username = session['username']  # Get the logged-in username from the session
+        
+        # Connect to the database
+        conn = get_db_connection()
+        
+        # Fetch transactions for the specific user
+        transactions = conn.execute(
+            'SELECT * FROM transactions WHERE user = ?',
+            (username,)
+        ).fetchall()
+        
+        conn.close()
+
+        # Render the template with the fetched transaction data
+        return render_template('history.html', transactions=transactions)
+    else:
+        # Redirect to login or handle unauthorized access
+        return redirect(url_for('login'))
+
+
+
+@app.route('/trade',methods=['GET'])
 def trade():
-    return render_template("trade.html",)
+    search = request.args.get('search', '').strip().upper()
+    options = fetch_options_data(search)
+    #print(options)
+    return render_template("trade.html",options=options)
 
 # Log route
 @app.route('/log')
@@ -265,6 +512,3 @@ def logout():
 if __name__ == "__main__":
     create_db_if_not_exists()
     app.run(debug=True)
-
-
-

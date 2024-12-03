@@ -6,30 +6,128 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/pstyle.css') }}">
     <title>User Profile</title>
+    <style>
+        /* Modal styles */
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 1; /* Sit on top */
+            left: 0;
+            top: 0;
+            width: 100%; /* Full width */
+            height: 100%; /* Full height */
+            overflow: auto; /* Enable scroll if needed */
+            background-color: rgba(0, 0, 0, 0.4); /* Black w/ opacity */
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 15% auto; /* 15% from the top and centered */
+            padding: 20px;
+            border: 1px solid #888;
+            width: 30%; /* Could be more or less, depending on screen size */
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .modal-header {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 15px;
+        }
+
+        .modal-footer {
+            text-align: right;
+            margin-top: 15px;
+        }
+
+        .add-button {
+            padding: 10px 20px;
+            font-size: 16px;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+            margin-right: 10px;
+        }
+
+        .add-button:hover {
+            opacity: 0.9;
+        }
+
+        .add-button:first-child {
+            background-color: #28a745; /* Green for Add */
+        }
+
+        .add-button:last-child {
+            background-color: #6c757d; /* Gray for Cancel */
+        }
+    </style>
 </head>
 <body>
     <header>
         <nav>
             <a href="{{ url_for('homeuser') }}">Home</a>
             <a href="{{ url_for('trade') }}">Trade</a>
+            <a href="{{ url_for('history') }}">History</a>
             <a href="{{ url_for('report') }}">Report</a>
             <a href="{{ url_for('logout') }}">Logout</a>
-            <a href="{{ url_for('profile') }}">{{ username }}</a>
+            <a href="{{ url_for('profile') }}">{{ session['username'] }}</a>
         </nav>
     </header>
 
     <main>
-        <h1>User Profile</h1>
-        <p>Welcome, {{ username }}!</p>
         
-        <!-- Display user profile information -->
-        <div>
+        <p>Welcome, {{ username }}!</p>
+
+        <div class="profile-info">
             <h2>Profile Information</h2>
             <p><strong>Username:</strong> {{ username }}</p>
             <p><strong>Email:</strong> {{ email }}</p>
             <!-- Add more user profile fields as necessary -->
-            
+        </div>
+        <div>
+            <h2>Wallet Information</h2>
+            <p><strong>Wallet Amount:</strong> {{ wallet_amount }}</p>
+            <button onclick="openAddAmountModal()" class="add-button" style="background-color: #007bff;">Add Funds</button>
         </div>
     </main>
+
+    <!-- Modal -->
+    <div id="addAmountModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                Add Amount
+            </div>
+            <form method="POST" action="{{ url_for('add_amount') }}">
+                <label for="amount">Enter Amount:</label>
+                <input type="number" id="amount" name="amount" required>
+                <div class="modal-footer">
+                    <button type="submit" class="add-button">Add</button>
+                    <button type="button" onclick="closeAddAmountModal()" class="add-button">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Open the modal
+        function openAddAmountModal() {
+            document.getElementById('addAmountModal').style.display = 'block';
+        }
+
+        // Close the modal
+        function closeAddAmountModal() {
+            document.getElementById('addAmountModal').style.display = 'none';
+        }
+
+        // Close the modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('addAmountModal');
+            if (event.target === modal) {
+                modal.style.display = 'none';
+            }
+        }
+    </script>
 </body>
 </html>
